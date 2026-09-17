@@ -1,0 +1,11 @@
+from sqlalchemy import String,Text,Float,Integer,Boolean,DateTime,JSON,ForeignKey,UniqueConstraint
+from sqlalchemy.orm import Mapped,mapped_column
+from .core import Base,utcnow
+class Snapshot(Base):
+ __tablename__='snapshots';id:Mapped[int]=mapped_column(primary_key=True);opportunity_id:Mapped[int]=mapped_column(ForeignKey('opportunities.id'),index=True);captured_at:Mapped[DateTime]=mapped_column(DateTime(timezone=True),default=utcnow);content_hash:Mapped[str]=mapped_column(String(64));data:Mapped[dict]=mapped_column(JSON,default=dict)
+class QueryMetric(Base):
+ __tablename__='query_metrics';id:Mapped[int]=mapped_column(primary_key=True);campaign_id:Mapped[int]=mapped_column(ForeignKey('campaigns.id'),index=True);query:Mapped[str]=mapped_column(Text);language:Mapped[str]=mapped_column(String(12),default='en');runs:Mapped[int]=mapped_column(Integer,default=0);results:Mapped[int]=mapped_column(Integer,default=0);new_items:Mapped[int]=mapped_column(Integer,default=0);verified:Mapped[int]=mapped_column(Integer,default=0);errors:Mapped[int]=mapped_column(Integer,default=0);score:Mapped[float]=mapped_column(Float,default=.5);last_run:Mapped[DateTime|None]=mapped_column(DateTime(timezone=True));__table_args__=(UniqueConstraint('campaign_id','query','language'),)
+class Watchlist(Base):
+ __tablename__='watchlists';id:Mapped[int]=mapped_column(primary_key=True);name:Mapped[str]=mapped_column(String(120));profile_id:Mapped[int|None]=mapped_column(ForeignKey('profiles.id'));filters:Mapped[dict]=mapped_column(JSON,default=dict);enabled:Mapped[bool]=mapped_column(Boolean,default=True);created_at:Mapped[DateTime]=mapped_column(DateTime(timezone=True),default=utcnow)
+class Alert(Base):
+ __tablename__='alerts';id:Mapped[int]=mapped_column(primary_key=True);watchlist_id:Mapped[int]=mapped_column(ForeignKey('watchlists.id'),index=True);opportunity_id:Mapped[int]=mapped_column(ForeignKey('opportunities.id'));kind:Mapped[str]=mapped_column(String(30),default='new_match');message:Mapped[str]=mapped_column(Text);created_at:Mapped[DateTime]=mapped_column(DateTime(timezone=True),default=utcnow);read:Mapped[bool]=mapped_column(Boolean,default=False);__table_args__=(UniqueConstraint('watchlist_id','opportunity_id','kind'),)
