@@ -7,14 +7,17 @@ from .models import *
 from .advanced_models import Snapshot,QueryMetric,Watchlist,Alert
 from .search import build_query
 from .seeds import SOURCES
-app=FastAPI(title='Opportunity Atlas',version='0.4.0');app.add_middleware(CORSMiddleware,allow_origins=['*'],allow_methods=['*'],allow_headers=['*'])
+from .portal_registry import PORTALS
+from .portal_adapters import ADAPTERS
+from .structured_ingest import ingest_adapter
+app=FastAPI(title='Opportunity Atlas',version='0.5.0');app.add_middleware(CORSMiddleware,allow_origins=['*'],allow_methods=['*'],allow_headers=['*'])
 @app.on_event('startup')
 def startup():Base.metadata.create_all(engine);seed()
 class CampaignIn(BaseModel):name:str;description:str='';cadence:str='weekly';queries:list[str]=[];languages:list[str]=['en'];filters:dict={}
 class ProfileIn(BaseModel):name:str;skills:list[str]=[];interests:list[str]=[];countries:list[str]=[];min_reward:float=0;hours_per_week:int=10
 class WatchIn(BaseModel):name:str;profile_id:int|None=None;filters:dict={}
 @app.get('/health')
-def health():return {'ok':True}
+def health():return {'ok':True,'version':'0.5.0','structured_adapters':list(ADAPTERS)}
 @app.get('/opportunities')
 def opportunities(q:str|None=None,kind:str|None=None,country:str|None=None,min_reward:float|None=None,min_confidence:float|None=None,remote:bool|None=None,status:str='open',sort:str='confidence',limit:int=100,offset:int=0):
  with SessionLocal() as s:return s.scalars(build_query(q,kind,country,min_reward,min_confidence,remote,status,sort).offset(offset).limit(min(limit,500))).all()
@@ -24,6 +27,12 @@ def history(oid:int):
 @app.get('/sources')
 def sources(limit:int=1000):
  with SessionLocal() as s:return s.scalars(select(Source).order_by(desc(Source.trust)).limit(limit)).all()
+@app.get('/portals')
+def portals():return PORTALS
+@app.post('/portals/{adapter}/sync')
+def sync_portal(adapter:str,q:str=''):
+ if adapter not in ADAPTERS:raise HTTPException(404,'No structured adapter with that name')
+ return ingest_adapter(adapter,q)
 @app.get('/campaigns')
 def campaigns():
  with SessionLocal() as s:return s.scalars(select(Campaign)).all()
@@ -59,7 +68,7 @@ def alerts(unread:bool=False,limit:int=200):
   stmt=select(Alert).order_by(desc(Alert.created_at));stmt=stmt.where(Alert.read==False) if unread else stmt;return s.scalars(stmt.limit(limit)).all()
 @app.get('/stats')
 def stats():
- with SessionLocal() as s:return {'opportunities':s.scalar(select(func.count()).select_from(Opportunity)),'sources':s.scalar(select(func.count()).select_from(Source)),'campaigns':s.scalar(select(func.count()).select_from(Campaign)),'runs':s.scalar(select(func.count()).select_from(Run)),'alerts':s.scalar(select(func.count()).select_from(Alert))}
+ with SessionLocal() as s:return {'opportunities':s.scalar(select(func.count()).select_from(Opportunity)),'sources':s.scalar(select(func.count()).select_from(Source)),'campaigns':s.scalar(select(func.count()).select_from(Campaign)),'runs':s.scalar(select(func.count()).select_from(Run)),'alerts':s.scalar(select(func.count()).select_from(Alert)),'portals':len(PORTALS),'structured_adapters':len(ADAPTERS)}
 def seed():
  with SessionLocal() as s:
   for name,url,country,cats in SOURCES:
