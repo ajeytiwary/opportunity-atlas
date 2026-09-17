@@ -4,21 +4,26 @@ from pydantic import BaseModel
 from sqlalchemy import select,desc,func
 from .core import Base,engine,SessionLocal,utcnow
 from .models import *
+from .advanced_models import Snapshot,QueryMetric,Watchlist,Alert
+from .search import build_query
 from .seeds import SOURCES
-app=FastAPI(title='Opportunity Atlas',version='0.3.0')
-app.add_middleware(CORSMiddleware,allow_origins=['*'],allow_methods=['*'],allow_headers=['*'])
+app=FastAPI(title='Opportunity Atlas',version='0.4.0');app.add_middleware(CORSMiddleware,allow_origins=['*'],allow_methods=['*'],allow_headers=['*'])
 @app.on_event('startup')
-def startup(): Base.metadata.create_all(engine); seed()
-class CampaignIn(BaseModel): name:str; description:str=''; cadence:str='weekly'; queries:list[str]=[]; languages:list[str]=['en']; filters:dict={}
-class ProfileIn(BaseModel): name:str; skills:list[str]=[]; interests:list[str]=[]; countries:list[str]=[]; min_reward:float=0; hours_per_week:int=10
+def startup():Base.metadata.create_all(engine);seed()
+class CampaignIn(BaseModel):name:str;description:str='';cadence:str='weekly';queries:list[str]=[];languages:list[str]=['en'];filters:dict={}
+class ProfileIn(BaseModel):name:str;skills:list[str]=[];interests:list[str]=[];countries:list[str]=[];min_reward:float=0;hours_per_week:int=10
+class WatchIn(BaseModel):name:str;profile_id:int|None=None;filters:dict={}
 @app.get('/health')
-def health(): return {'ok':True}
+def health():return {'ok':True}
 @app.get('/opportunities')
-def opportunities(limit:int=100,status:str='open'):
- with SessionLocal() as s:return s.scalars(select(Opportunity).where(Opportunity.status==status).order_by(desc(Opportunity.confidence)).limit(limit)).all()
+def opportunities(q:str|None=None,kind:str|None=None,country:str|None=None,min_reward:float|None=None,min_confidence:float|None=None,remote:bool|None=None,status:str='open',sort:str='confidence',limit:int=100,offset:int=0):
+ with SessionLocal() as s:return s.scalars(build_query(q,kind,country,min_reward,min_confidence,remote,status,sort).offset(offset).limit(min(limit,500))).all()
+@app.get('/opportunities/{oid}/history')
+def history(oid:int):
+ with SessionLocal() as s:return s.scalars(select(Snapshot).where(Snapshot.opportunity_id==oid).order_by(desc(Snapshot.captured_at))).all()
 @app.get('/sources')
-def sources():
- with SessionLocal() as s:return s.scalars(select(Source).order_by(desc(Source.trust))).all()
+def sources(limit:int=1000):
+ with SessionLocal() as s:return s.scalars(select(Source).order_by(desc(Source.trust)).limit(limit)).all()
 @app.get('/campaigns')
 def campaigns():
  with SessionLocal() as s:return s.scalars(select(Campaign)).all()
@@ -30,6 +35,9 @@ def run(cid:int):
  with SessionLocal() as s:
   if not s.get(Campaign,cid):raise HTTPException(404)
   r=Run(campaign_id=cid);s.add(r);s.commit();s.refresh(r);return r
+@app.get('/campaigns/{cid}/queries')
+def query_metrics(cid:int):
+ with SessionLocal() as s:return s.scalars(select(QueryMetric).where(QueryMetric.campaign_id==cid).order_by(desc(QueryMetric.score)).limit(500)).all()
 @app.get('/runs')
 def runs():
  with SessionLocal() as s:return s.scalars(select(Run).order_by(desc(Run.id)).limit(100)).all()
@@ -38,12 +46,20 @@ def profile(x:ProfileIn):
  with SessionLocal() as s:p=Profile(**x.model_dump());s.add(p);s.commit();s.refresh(p);return p
 @app.get('/profiles/{pid}/matches')
 def matches(pid:int,limit:int=100):
+ with SessionLocal() as s:rows=s.execute(select(Match,Opportunity).join(Opportunity,Opportunity.id==Match.opportunity_id).where(Match.profile_id==pid).order_by(desc(Match.score)).limit(limit)).all();return [{'score':m.score,'reasons':m.reasons,'opportunity':o} for m,o in rows]
+@app.post('/watchlists')
+def watch(x:WatchIn):
+ with SessionLocal() as s:w=Watchlist(**x.model_dump());s.add(w);s.commit();s.refresh(w);return w
+@app.get('/watchlists')
+def watches():
+ with SessionLocal() as s:return s.scalars(select(Watchlist)).all()
+@app.get('/alerts')
+def alerts(unread:bool=False,limit:int=200):
  with SessionLocal() as s:
-  rows=s.execute(select(Match,Opportunity).join(Opportunity,Opportunity.id==Match.opportunity_id).where(Match.profile_id==pid).order_by(desc(Match.score)).limit(limit)).all()
-  return [{'score':m.score,'reasons':m.reasons,'opportunity':o} for m,o in rows]
+  stmt=select(Alert).order_by(desc(Alert.created_at));stmt=stmt.where(Alert.read==False) if unread else stmt;return s.scalars(stmt.limit(limit)).all()
 @app.get('/stats')
 def stats():
- with SessionLocal() as s:return {'opportunities':s.scalar(select(func.count()).select_from(Opportunity)),'sources':s.scalar(select(func.count()).select_from(Source)),'campaigns':s.scalar(select(func.count()).select_from(Campaign)),'runs':s.scalar(select(func.count()).select_from(Run))}
+ with SessionLocal() as s:return {'opportunities':s.scalar(select(func.count()).select_from(Opportunity)),'sources':s.scalar(select(func.count()).select_from(Source)),'campaigns':s.scalar(select(func.count()).select_from(Campaign)),'runs':s.scalar(select(func.count()).select_from(Run)),'alerts':s.scalar(select(func.count()).select_from(Alert))}
 def seed():
  with SessionLocal() as s:
   for name,url,country,cats in SOURCES:
