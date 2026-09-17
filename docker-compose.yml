@@ -1,0 +1,44 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: atlas
+      POSTGRES_PASSWORD: atlas
+      POSTGRES_DB: atlas
+    volumes: [atlas_db:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U atlas"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+  searxng:
+    image: searxng/searxng:latest
+    ports: ["8080:8080"]
+  api:
+    build: ./backend
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+psycopg://atlas:atlas@db:5432/atlas
+      SEARXNG_URL: http://searxng:8080
+    ports: ["8000:8000"]
+    depends_on:
+      db: {condition: service_healthy}
+      searxng: {condition: service_started}
+  worker:
+    build: ./backend
+    command: ["python", "-m", "app.worker"]
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+psycopg://atlas:atlas@db:5432/atlas
+      SEARXNG_URL: http://searxng:8080
+    depends_on:
+      db: {condition: service_healthy}
+      searxng: {condition: service_started}
+  web:
+    build: ./web
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:8000
+    ports: ["3000:3000"]
+    depends_on: [api]
+volumes:
+  atlas_db:
