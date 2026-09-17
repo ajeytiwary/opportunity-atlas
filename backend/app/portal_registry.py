@@ -1,45 +1,17 @@
-"""Portal-specific strategies. `mode=structured` invokes a first-class adapter;
-`mode=discover` uses the domain as a constrained discovery seed until a stable public API is verified.
-Never guess undocumented private endpoints.
-"""
+"""Portal strategies: structured adapters where stable/public; constrained discovery otherwise."""
 PORTALS=[
 {"name":"Grants.gov","domain":"grants.gov","mode":"structured","adapter":"grants_gov","region":"US"},
 {"name":"EU Funding & Tenders","domain":"ec.europa.eu","mode":"structured","adapter":"eu_funding_tenders","region":"EU"},
+{"name":"TED EU Procurement","domain":"ted.europa.eu","mode":"structured","adapter":"ted","region":"EU"},
+{"name":"UKRI","domain":"ukri.org","mode":"structured","adapter":"ukri","region":"UK"},
+{"name":"GitHub Issues","domain":"github.com","mode":"structured","adapter":"github_issues","region":"Global","auth":"optional GITHUB_TOKEN"},
 {"name":"Kaggle","domain":"kaggle.com","mode":"structured","adapter":"kaggle","region":"Global","auth":"Kaggle token/CLI"},
-{"name":"Devpost","domain":"devpost.com","mode":"discover","terms":["hackathon","prize"]},
-{"name":"DrivenData","domain":"drivendata.org","mode":"discover","terms":["competitions"]},
-{"name":"Zindi","domain":"zindi.africa","mode":"discover","terms":["competitions"]},
-{"name":"AIcrowd","domain":"aicrowd.com","mode":"discover","terms":["challenges"]},
-{"name":"HeroX","domain":"herox.com","mode":"discover","terms":["challenge","prize"]},
-{"name":"XPRIZE","domain":"xprize.org","mode":"discover","terms":["competition","prize"]},
-{"name":"Challenge.gov","domain":"challenge.gov","mode":"discover","terms":["challenge","prize"]},
-{"name":"RVO","domain":"rvo.nl","mode":"discover","terms":["subsidie","openstelling","challenge","innovatie"]},
-{"name":"NWO","domain":"nwo.nl","mode":"discover","terms":["call","funding","subsidie"]},
-{"name":"UKRI","domain":"ukri.org","mode":"discover","terms":["opportunity","funding"]},
-{"name":"Innovate UK","domain":"iuk-business-connect.org.uk","mode":"discover","terms":["competition","funding"]},
-{"name":"ESA","domain":"esa.int","mode":"discover","terms":["challenge","call","competition"]},
-{"name":"EUSPA","domain":"euspa.europa.eu","mode":"discover","terms":["call","competition","prize"]},
-{"name":"EIT","domain":"eit.europa.eu","mode":"discover","terms":["call","opportunity"]},
-{"name":"CINEA LIFE","domain":"cinea.ec.europa.eu","mode":"discover","terms":["LIFE call","funding"]},
-{"name":"NASA","domain":"nasa.gov","mode":"discover","terms":["prize","challenge","competition"]},
-{"name":"NSF","domain":"nsf.gov","mode":"discover","terms":["funding opportunity"]},
-{"name":"ARPA-E","domain":"arpa-e.energy.gov","mode":"discover","terms":["funding opportunity"]},
-{"name":"IndiaAI","domain":"indiaai.gov.in","mode":"discover","terms":["challenge","call","innovation"]},
-{"name":"MeitY","domain":"meity.gov.in","mode":"discover","terms":["challenge","call","grant"]},
-{"name":"BIRAC","domain":"birac.nic.in","mode":"discover","terms":["call for proposal","challenge"]},
-{"name":"Startup India","domain":"startupindia.gov.in","mode":"discover","terms":["challenge","scheme","grant"]},
-{"name":"DST India","domain":"dst.gov.in","mode":"discover","terms":["call for proposals"]},
-{"name":"HackerOne","domain":"hackerone.com","mode":"discover","terms":["bounty program"]},
-{"name":"Bugcrowd","domain":"bugcrowd.com","mode":"discover","terms":["bug bounty"]},
-{"name":"Intigriti","domain":"intigriti.com","mode":"discover","terms":["bug bounty"]},
-{"name":"YesWeHack","domain":"yeswehack.com","mode":"discover","terms":["bug bounty"]},
-{"name":"Algora","domain":"algora.io","mode":"discover","terms":["bounty"]},
-{"name":"Polar","domain":"polar.sh","mode":"discover","terms":["bounty"]},
-]
-
+{"name":"Devpost","domain":"devpost.com","mode":"discover","terms":["hackathon","prize"]},{"name":"DrivenData","domain":"drivendata.org","mode":"discover","terms":["competitions"]},{"name":"Zindi","domain":"zindi.africa","mode":"discover","terms":["competitions"]},{"name":"AIcrowd","domain":"aicrowd.com","mode":"discover","terms":["challenges"]},{"name":"HeroX","domain":"herox.com","mode":"discover","terms":["challenge","prize"]},{"name":"XPRIZE","domain":"xprize.org","mode":"discover","terms":["competition","prize"]},
+{"name":"USA.gov Innovation","domain":"usa.gov","mode":"discover","terms":["federal challenge prize competition innovation"]},
+{"name":"RVO","domain":"rvo.nl","mode":"discover","terms":["subsidie","openstelling","challenge","innovatie"]},{"name":"NWO","domain":"nwo.nl","mode":"discover","terms":["call","funding","subsidie"]},{"name":"Innovate UK","domain":"iuk-business-connect.org.uk","mode":"discover","terms":["competition","funding"]},{"name":"ESA","domain":"esa.int","mode":"discover","terms":["challenge","call","competition"]},{"name":"EUSPA","domain":"euspa.europa.eu","mode":"discover","terms":["call","competition","prize"]},{"name":"EIT","domain":"eit.europa.eu","mode":"discover","terms":["call","opportunity"]},{"name":"CINEA LIFE","domain":"cinea.ec.europa.eu","mode":"discover","terms":["LIFE call","funding"]},{"name":"NASA","domain":"nasa.gov","mode":"discover","terms":["prize","challenge","competition"]},{"name":"NSF","domain":"nsf.gov","mode":"discover","terms":["funding opportunity"]},{"name":"ARPA-E","domain":"arpa-e.energy.gov","mode":"discover","terms":["funding opportunity"]},{"name":"IndiaAI","domain":"indiaai.gov.in","mode":"discover","terms":["challenge","call","innovation"]},{"name":"MeitY","domain":"meity.gov.in","mode":"discover","terms":["challenge","call","grant"]},{"name":"BIRAC","domain":"birac.nic.in","mode":"discover","terms":["call for proposal","challenge"]},{"name":"Startup India","domain":"startupindia.gov.in","mode":"discover","terms":["challenge","scheme","grant"]},{"name":"DST India","domain":"dst.gov.in","mode":"discover","terms":["call for proposals"]},{"name":"HackerOne","domain":"hackerone.com","mode":"discover","terms":["bounty program"]},{"name":"Bugcrowd","domain":"bugcrowd.com","mode":"discover","terms":["bug bounty"]},{"name":"Intigriti","domain":"intigriti.com","mode":"discover","terms":["bug bounty"]},{"name":"YesWeHack","domain":"yeswehack.com","mode":"discover","terms":["bug bounty"]},{"name":"Algora","domain":"algora.io","mode":"discover","terms":["bounty"]},{"name":"Polar","domain":"polar.sh","mode":"discover","terms":["bounty"]}]
 def discovery_queries():
-    out=[]
-    for p in PORTALS:
-        if p['mode']!='discover':continue
-        for term in p.get('terms',['opportunity']):out.append({'q':f"site:{p['domain']} {term}",'portal':p['name']})
-    return out
+ out=[]
+ for p in PORTALS:
+  if p['mode']=='discover':
+   for term in p.get('terms',['opportunity']):out.append({'q':f"site:{p['domain']} {term}",'portal':p['name']})
+ return out
