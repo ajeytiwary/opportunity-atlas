@@ -10,3 +10,5 @@ openai==1.102.0
 apscheduler==3.11.0
 python-dateutil==2.9.0.post0
 rapidfuzz==3.14.0
+alembic==1.16.5
+pytest==8.4.1
